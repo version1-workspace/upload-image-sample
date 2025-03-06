@@ -1,0 +1,139 @@
+<html>
+  <head>
+    <title>Upload Image Sample</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        padding: 32px;
+        max-width: 640px;
+        margin: 32px auto;
+      }
+
+      .form {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        margin-bottom: 20px;
+      }
+
+      .button {
+        border: 0;
+      }
+
+      .button-primary {
+        background: blue;
+        color: white;
+        padding: 16px;
+      }
+
+      .field {
+        margin-bottom: 10px;
+      }
+
+      .text-field {
+        width: 100%;
+        padding: 10px;
+        font-size: 16px;
+      }
+
+      .posts {
+        border-top: 1px solid #ccc;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .posts > div {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .textarea {
+        width: 100%;
+        margin-bottom: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <form id="add-post" class="form">
+        <div class="field">
+          <label html-for="image">Image</label>
+          <input type="file" name="image" />
+        </div>
+        <div className="field">
+          <label html-for="body">Body</label>
+          <textarea class="textarea" type="text" name="body" >
+          </textarea>
+        </div>
+        <button type="submit">Post</button>
+      </form>
+      <div id="posts" class="posts">
+      </div>
+    </div>
+    <script>
+      (function() {
+        async function fetchPosts() {
+          const res = await fetch('/posts')
+          return await res.json()
+        }
+
+        async function addPosts() {
+          const form = document.getElementById('add-post');
+          const data = Object.fromEntries(form.entries())
+
+          const images = await Promise.all(data.images.map(async image => {
+              return uploadImage(image)
+          })))
+
+          const _data = {
+            body: data.body,
+            images
+          }
+          const res = await fetch('/posts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              data: _data
+            })
+          })
+          return await res.json()
+        }
+
+        async function uploadImages(image) {
+          return {
+            url: 'https://via.placeholder.com/150',
+            ext: '',
+            size: '',
+            filename: ''
+          }
+        }
+
+        function renderPosts(posts) {
+          const postsElement = document.getElementById('posts');
+          postsElement.innerHTML = '';
+          posts.forEach(post => {
+            const postElement = document.createElement('div');
+            postElement.innerText = post.body;
+            postsElement.appendChild(postElement);
+          });
+        }
+
+        async function main() {
+          const { data: posts } = await fetchPosts();
+          renderPosts(posts);
+        }
+
+        main()
+      })()
+    </script>
+  </body>
+</html>
