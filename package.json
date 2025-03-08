@@ -9,6 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cloudinary": "^2.5.1",
+    "dotenv": "^16.4.7",
     "handlebars": "^4.7.8"
   }
 }

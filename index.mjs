@@ -1,96 +1,121 @@
 import { createServer } from "node:http";
-import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { View } from "./view.mjs";
+import { Post } from "./model.mjs";
+import { config as cloudinaryConfig, client as imageClient } from "./image.mjs";
 
 const hostname = "127.0.0.1";
 const port = 3000;
 
-// View
-class View {
-  constructor(path) {
-    this.path = path;
-  }
+const viewContext = {
+  cloudinaryCloudName: cloudinaryConfig.cloudName,
+  cloudinaryApiKey: cloudinaryConfig.apiKey,
+};
 
-  async render() {
-    return await readFile(this.path);
-  }
-}
+const createRoute = (method, path, handler) => {
+  return { method, path, handler };
+};
 
-// Model
-class Image {
-  constructor({ url, ext, size, filename }) {
-    this.id = generateID();
-    this.url = url;
-    this.ext = ext;
-    this.size = size;
-    this.filename = filename;
+const parseBody = async (req) => {
+  const body = [];
+  for await (const chunk of req) {
+    body.push(chunk);
   }
-
-  toJSON() {
-    return {
-      id: this.id,
-      url: this.url,
-      ext: this.ext,
-      filename: this.filename,
-    };
-  }
-}
-
-class Post {
-  static all() {
-    return database;
-  }
-
-  constructor({ body, images }) {
-    this.id = generateID();
-    this.body = body;
-    this.images = images.map((image) => new Image(image));
-  }
-
-  save() {
-    console.log("Saving Post: ", this);
-    database.push(this);
-  }
-
-  toJSON() {
-    return {
-      id: this.id,
-      body: this.body,
-      images: this.images.map((image) => image.toJSON()),
-    };
-  }
-}
-
-const generateID = () => crypto.randomBytes(16).toString("hex");
+  return JSON.parse(Buffer.concat(body).toString());
+};
 
 // Controller
 const server = createServer(async (req, res) => {
   res.statusCode = 200;
   console.log("Request Received: ", req.method, req.url);
-  if (req.method === "GET" && req.url === "/") {
-    const template = new View("./views/index.tmpl.html");
-    res.setHeader("Content-Type", "text/html");
-    res.end(await template.render());
-    return;
-  }
+  const assetsRoutes = [
+    createRoute("GET", "/assets/js/index.js", async (_req, res) => {
+      const js = await readFile("./static/js/index.js");
+      res.setHeader("Content-Type", "application/javascript");
+      res.end(js);
+      return;
+    }),
+  ];
 
-  if (req.method === "POST" && req.url === "/api/v1/posts") {
-    res.setHeader("Content-Type", "applicaiton/json");
-    return;
-  }
+  const htmlRoutes = [
+    createRoute("GET", "/", async (_req, res) => {
+      const template = new View("./views/index.tmpl.html");
+      res.setHeader("Content-Type", "text/html");
+      res.end(await template.render(viewContext));
+      return;
+    }),
+  ];
 
-  if (req.method === "GET" && req.url === "/api/v1/posts") {
-    res.setHeader("Content-Type", "applicaiton/json");
-    const posts = Post.all();
-    return res.end(JSON.stringify({ data: posts }));
+  const apiV1Routes = [
+    createRoute("GET", "/api/v1/posts", async (_req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      const posts = Post.all();
+      return res.end(JSON.stringify({ data: posts }));
+    }),
+    createRoute("POST", "/api/v1/posts", async (req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      const reqBody = await parseBody(req);
+      console.log("Request Body: ", reqBody);
+      const {
+        data: { images: postImages, body },
+      } = reqBody;
+      const images = postImages.map((image) => {
+        return {
+          url: image.url,
+          publicId: image.publicId,
+          ext: image.format,
+          size: image.size,
+          filename: image.originalName,
+          height: image.height,
+          width: image.width,
+        };
+      });
+      const post = new Post({ body, images });
+      post.save();
+      return res.end(JSON.stringify({ data: post }));
+    }),
+    createRoute("POST", "/api/v1/images/signature", async (_req, res) => {
+      res.setHeader("Content-Type", "applicaiton/json");
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      const signature = imageClient.utils.api_sign_request(
+        {
+          timestamp,
+        },
+        cloudinaryConfig.apiSecret,
+      );
+
+      return res.end(
+        JSON.stringify({
+          data: {
+            signature,
+            timestamp,
+          },
+        }),
+      );
+    }),
+  ];
+
+  const routes = [...assetsRoutes, ...htmlRoutes, ...apiV1Routes];
+  const route = routes.find(
+    (route) => route.method === req.method && route.path === req.url,
+  );
+
+  try {
+    if (route) {
+      route.handler(req, res);
+      return;
+    }
+  } catch (error) {
+    //console.error("Error: ", error);
+    res.statusCode = 500;
+    res.end(JSON.stringify({ message: "Internal Server Error" }));
+    return;
   }
 
   res.setHeader("Content-Type", "application/json");
   res.statusCode = 404;
   res.end(JSON.stringify({ message: "Not Found" }));
 });
-
-const database = [];
 
 server.listen(port, hostname, () => {
   console.log(`Server running at http://${hostname}:${port}/`);

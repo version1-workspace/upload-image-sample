@@ -9,8 +9,7 @@
       }
 
       .container {
-        padding: 32px;
-        max-width: 640px;
+        padding: 32px; max-width: 640px;
         margin: 32px auto;
       }
 
@@ -58,6 +57,25 @@
         width: 100%;
         margin-bottom: 32px;
       }
+
+      .image-inputs {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .image-input {
+        margin-bottom: 16px;
+      }
+
+      .post-item {
+        margin-bottom: 16px;
+        padding: 16px;
+        border: 1px solid #ccc;
+      }
+
+      .post-image {
+        width: 100%;
+      }
     </style>
   </head>
   <body>
@@ -65,12 +83,13 @@
       <form id="add-post" class="form">
         <div class="field">
           <label html-for="image">Image</label>
-          <input type="file" name="image" />
+          <div class="image-inputs">
+            <input class="image-input" type="file" name="images[]" accept="image/png, image/jpeg" multiple/>
+          </div>
         </div>
         <div className="field">
           <label html-for="body">Body</label>
-          <textarea class="textarea" type="text" name="body" >
-          </textarea>
+          <textarea class="textarea" type="text" name="body" ></textarea>
         </div>
         <button type="submit">Post</button>
       </form>
@@ -79,61 +98,12 @@
     </div>
     <script>
       (function() {
-        async function fetchPosts() {
-          const res = await fetch('/posts')
-          return await res.json()
+        window.cloudinaryApi = {
+          cloudName: "{{ cloudinaryCloudName }}",
+          apiKey: "{{ cloudinaryApiKey }}",
         }
-
-        async function addPosts() {
-          const form = document.getElementById('add-post');
-          const data = Object.fromEntries(form.entries())
-
-          const images = await Promise.all(data.images.map(async image => {
-              return uploadImage(image)
-          })))
-
-          const _data = {
-            body: data.body,
-            images
-          }
-          const res = await fetch('/posts', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              data: _data
-            })
-          })
-          return await res.json()
-        }
-
-        async function uploadImages(image) {
-          return {
-            url: 'https://via.placeholder.com/150',
-            ext: '',
-            size: '',
-            filename: ''
-          }
-        }
-
-        function renderPosts(posts) {
-          const postsElement = document.getElementById('posts');
-          postsElement.innerHTML = '';
-          posts.forEach(post => {
-            const postElement = document.createElement('div');
-            postElement.innerText = post.body;
-            postsElement.appendChild(postElement);
-          });
-        }
-
-        async function main() {
-          const { data: posts } = await fetchPosts();
-          renderPosts(posts);
-        }
-
-        main()
       })()
     </script>
+    <script src="/assets/js/index.js"></script>
   </body>
 </html>
